@@ -11,24 +11,28 @@ import scipy.misc as sic
 import subprocess
 import argparse
 
-parser = argparse.ArgumentParser()
+# Argument Parser 参数解析器
+# 1.创建解析器
+parser = argparse.ArgumentParser(description='model,gpu,test_dir,test_img')
+# 2.添加参数
 parser.add_argument("--model", default='ckpt_woflow', type=str, help="Model Name")
 parser.add_argument("--use_gpu", default=1, type=int, help="Use gpu or not")
 parser.add_argument("--test_dir", default='test_sample0', type=str, help="Test dir path")
 parser.add_argument("--test_img", default='', type=str, help="Test image path")
-
-
+# 3.解析参数
 ARGS = parser.parse_args()
 test_dir = ARGS.test_dir
 test_img = ARGS.test_img
 model=ARGS.model
 print(ARGS)
 
+# 判断GPU使用情况
 if not ARGS.use_gpu:
     os.environ["CUDA_VISIBLE_DEVICES"]=''  
 else:
     os.environ["CUDA_VISIBLE_DEVICES"]=str(np.argmax( [int(x.split()[2]) for x in subprocess.Popen("nvidia-smi -q -d Memory | grep -A4 GPU | grep Free", shell=True, stdout=subprocess.PIPE).stdout.readlines()]))
 
+# 
 def identity_initializer():
     def _initializer(shape, dtype=tf.float32, partition_info=None):
         array = np.zeros(shape, dtype=float)
@@ -38,9 +42,11 @@ def identity_initializer():
         return tf.constant(array, dtype=dtype)
     return _initializer
 
+# leaky relu
 def lrelu(x):
     return tf.maximum(x*0.2,x)
 
+# 双线性上采样并且连接
 def bilinear_up_and_concat(x1, x2, output_channels, in_channels, scope):
     with tf.variable_scope(scope):
         upconv = tf.image.resize_images(x1, [tf.shape(x1)[1]*2, tf.shape(x1)[2]*2] )
@@ -93,9 +99,10 @@ with tf.variable_scope(tf.get_variable_scope()):
         g0=VCN(utils.build(tf.tile(input_i[:,:,:,0:1],[1,1,1,3])), reuse=False)
         g1=VCN(utils.build(tf.tile(input_i[:,:,:,1:2],[1,1,1,3])), reuse=True)
 
+# train
 saver=tf.train.Saver(max_to_keep=1000)
 sess.run([tf.global_variables_initializer()])
-
+# save
 var_restore = [v for v in tf.trainable_variables()]
 saver_restore=tf.train.Saver(var_restore)
 ckpt=tf.train.get_checkpoint_state(model)
